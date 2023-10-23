@@ -1,0 +1,226 @@
+﻿@page "/User"
+@using AltinayStaj2.Models
+@using Microsoft.EntityFrameworkCore
+@using System.Linq
+@using System.Collections.Generic
+@using MudBlazor.Utilities
+@using MudBlazor.Components
+<div>
+    <div style="position: relative;">
+        <div style="position: absolute; top: -80px; right: -1200px; display: flex; align-items: center;">
+            <div style="margin-right: 20px;">
+                <MudButton OnClick="LoadData" Variant="Variant.Filled" Color="Color.Default" Style="font-size: 15px; padding: 10px 20px;">
+                    <MudIcon Icon="@Icons.Material.Filled.Download" Size="Size.Large" Class="mr-2" />
+                    load Data
+                </MudButton>
+            </div>
+            <div style="margin-right: 30px;">
+                <MudButton OnClick="SaveData" Variant="Variant.Filled" Color="Color.Primary" Style="font-size: 15px; padding: 10px 20px;">
+                    <MudIcon Icon="@Icons.Material.Filled.Save" Size="Size.Large" Class="mr-2" />
+                    Save All Data
+                </MudButton>
+            </div>
+            <div style="margin-right: 30px;">
+                <MudButton OnClick="Delete" Variant="Variant.Filled" Color="Color.Error" Style="font-size: 15px; padding: 10px 20px;">
+                    <MudIcon Icon="@Icons.Material.Filled.Delete" Size="Size.Large" Class="mr-2" />
+                    Delete All Data
+                </MudButton>
+            </div>
+        </div>
+    </div>
+    <MudDropContainer T="DropItem" Items="_items" ItemsSelector="@((item, dropzone) => item.Identifier == dropzone)" ItemDropped="ItemUpdated" Class="d-flex flex-wrap flex-grow-1">
+        <ChildContent>
+            <div class="d-flex" style="margin-left: -450px;">
+                <MudDropZone T="DropItem" Identifier="Drop Zone 1" Class="rounded mud-background-red pa-6 ma-8 flex-grow-1" Style="background-color: lightgreen; width: 300px;">
+                    <div class="d-flex align-items-center">
+                        <MudIcon Icon="@Icons.Material.Filled.People" Size="Size.Medium" Class="mr-2" />
+                        <MudText Typo="Typo.h6" Class="mb-4">USERS</MudText>
+                    </div>
+                </MudDropZone>
+                @for (int i = 2; i <= carCount + 1; i++)
+                {
+                    var identifier = $"Drop Zone {i}";
+                    var item = _items.FirstOrDefault(item => item.Identifier == identifier);
+                    var car = GetCarInfo(i - 1);
+                    var carStyle = GetCarStyle(item != null ? _items.IndexOf(item) : -1);
+                    var hasData = item != null;
+                    var carColor = hasData && carStyle == "yellow" ? "green" : "red";
+                    var style = $"color: {carColor};";
+                    <MudDropZone T="DropItem" Identifier="@identifier" Class="rounded mud-background-gray pa-6 ma-8 flex-grow-1" Style="min-width: 300px;">
+                        <div class="d-flex align-items-center mb-4" style="width: 240px; position: relative;">
+                            <MudIcon Icon="@Icons.Material.Filled.CarRental" Size="Size.Large" Class="mr-2" Style="@style" />
+                            <MudText Typo="Typo.h4" Class="mb-0" Style="@style">@car.Name</MudText>
+                            @if (carStyle == "yellow" && hasData)
+                            {
+                                <span style="position: absolute; top: -68px; right: 25px; font-size: 28px; color: green;">Car Usable ✔</span>
+                            }
+                            else
+                            {
+                                <span style="position: absolute; top: -68px; right: 25px; font-size: 28px; color: red;">Car Unusable ✖</span>
+                            }
+                        </div>
+                    </MudDropZone>
+                }
+            </div>
+        </ChildContent>
+        <ItemRenderer Context="item">
+            @{
+                var style = _items.IndexOf(item) < 4 ? "background-color: yellow;" : "background-color: white;";
+            }
+            <MudPaper Elevation="0" Class="pa-4 my-4" style="@style">
+                @item.Name
+            </MudPaper>
+        </ItemRenderer>
+    </MudDropContainer>
+</div>
+@code {
+    private List<DropItem> _items = new List<DropItem>();
+    private List<DropItem> _backupItems = new List<DropItem>();
+    private readonly ApplicationDbContext _dbContext;
+    private int carCount = 0;
+    private List<DropItem> _serverData = new List<DropItem>();
+    private bool dataLoaded = false;
+    public UserList()
+    {
+        _dbContext = new ApplicationDbContext();
+    }
+    protected override async Task OnInitializedAsync()
+    {
+        if (!dataLoaded)
+        {
+            dataLoaded = true;
+            await LoadData();
+        }
+        await Task.Yield();
+    }
+    private async Task LoadData()
+    {
+        if (_backupItems.Count == 0)
+        {
+            _items = await _dbContext.Users
+                .OrderBy(user => user.Name)
+                .Select(user => new DropItem
+                    {
+                        Name = $"{user.Name}",
+                        Identifier = "Drop Zone 1",
+                        Age = user.Age,
+                        Text = user.Text
+                    })
+                .ToListAsync();
+        }
+        else
+        {
+            _items = _backupItems.ToList();
+        }
+
+        carCount = await _dbContext.Cars.CountAsync();
+        StateHasChanged();
+    }
+    private async Task SaveData()
+    {
+        _dbContext.CurrentDatas.RemoveRange(_dbContext.CurrentDatas);
+        await _dbContext.SaveChangesAsync();
+        var usersToSave = _items
+        .Where(item => item != null && item.Age > 0 && !string.IsNullOrWhiteSpace(item.Text) && !IsDropZone1Item(item))
+        .Select(item =>
+        {
+            var carStyle = GetCarStyle(_items.IndexOf(item));
+            item.Text = carStyle == "yellow" ? "DRIVER" : "NOT DRIVER";
+
+            if (item.Identifier != null && item.Identifier.StartsWith("Drop Zone ") && !IsDropZone1Item(item))
+            {
+                int index = int.Parse(item.Identifier.Substring(10)) - 1;
+                var carInfo = GetCarInfo(index);
+                item.NumberPlate = carInfo.Name;
+            }
+            else
+            {
+                item.NumberPlate = "Can't Drive";
+            }
+            var currentTime = DateTime.Now;
+            return new
+            {
+                CurrentData = new CurrentData
+                    {
+                        Name = item.Name,
+                        Age = item.Age,
+                        Text = item.Text,
+                        NumberPlate = item.NumberPlate,
+                        CreationTime = currentTime
+                    },
+                SaveData = new SaveData
+                    {
+                        Name = item.Name,
+                        Age = item.Age,
+                        Text = item.Text,
+                        NumberPlate = item.NumberPlate,
+                        CreationTime = currentTime
+                    }
+            };
+        })
+        .OrderBy(item => item.SaveData.NumberPlate)
+        .ToList();
+        var currentDatasToSave = usersToSave.Select(user => user.CurrentData).ToList();
+        var saveDatasToSave = usersToSave.Select(user => user.SaveData).ToList();
+        await _dbContext.CurrentDatas.AddRangeAsync(currentDatasToSave);
+        await _dbContext.SaveDatas.AddRangeAsync(saveDatasToSave);
+        await _dbContext.SaveChangesAsync();
+        _backupItems = _items.ToList();
+    }
+    private bool IsDropZone1Item(DropItem item)
+    {
+        return item.Identifier != null && item.Identifier.Equals("Drop Zone 1");
+    }
+    private void Delete()
+    {
+        _items.Clear();
+        _backupItems.Clear();
+        StateHasChanged();
+    }
+    private void ItemUpdated(MudItemDropInfo<DropItem> dropItem)
+    {
+        dropItem.Item.Identifier = dropItem.DropzoneIdentifier;
+    }
+    public class DropItem
+    {
+        public string? Name { get; set; }
+        public string? Identifier { get; set; }
+        public int Age { get; set; }
+        public string? Text { get; set; }
+        public string? NumberPlate { get; set; }
+    }
+    private string GetCarStyle(int itemIndex)
+    {
+        return itemIndex < 4 ? "yellow" : "gray";
+    }
+    private Car GetCarInfo(int carId)
+    {
+        using (var context = new ApplicationDbContext())
+        {
+            var car = context.Cars.FirstOrDefault(c => c.Id == carId);
+            if (car != null)
+            {
+                return car;
+            }
+            else
+            {
+                throw new Exception("Car not found");
+            }
+        }
+    }
+    private async Task SaveDataToDatabase()
+    {
+        foreach (var item in _serverData)
+        {
+            SaveData saveData = new SaveData
+                {
+                    Name = item.Name,
+                    Age = item.Age,
+                    Text = item.Text
+                };
+
+            _dbContext.SaveDatas.Add(saveData);
+        }
+        await _dbContext.SaveChangesAsync();
+    }
+}

@@ -1,0 +1,79 @@
+﻿@inherits LayoutComponentBase
+@inject IJSRuntime JSRuntime
+@using MudBlazor.Components
+@using Microsoft.AspNetCore.Components.Routing
+
+<style>
+    body {
+        background-color: antiquewhite;
+    }
+
+    .mud-layout {
+        background-color: antiquewhite;
+    }
+</style>
+
+<MudThemeProvider />    
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@DrawerToggle" />
+        <div class="ml-3" style="display: flex; align-items: center;">
+            <MudText Typo="Typo.h5">Application</MudText>
+            
+            <span style="margin-left: 20px;"></span>
+            <img src="/NewFolder/altinay.jpg" alt="Altinay Resmi" style="max-width: 103px; max-height: 200px;">
+            
+        </div>
+            
+
+
+        <MudSpacer />
+
+        <MudText Typo="Typo.h3" Align="Align.Center" GutterBottom="true">Services Program</MudText>
+
+        <MudSpacer />
+
+        <MudIconButton Icon="@Icons.Material.Filled.MoreVert" Color="Color.Inherit" Edge="Edge.End" />
+    </MudAppBar>
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
+        <div class="mud-list-item">
+            <div class="mud-nav-link-text">
+                <MudButton Variant="Variant.Filled" DisableElevation="true" Color="Color.Primary" @onclick="ToggleServices">
+                    <MudIcon Icon="@Icons.Material.Filled.Build" Class="mr-2" />
+                    Services
+                </MudButton>
+            </div>
+        </div>
+    </MudDrawer>
+    <MudMainContent>
+        <MudContainer Class="mt-16" MaxWidth="MaxWidth.Medium">
+            <MudGrid Spacing="6" Class="mt-16">
+                <MudItem xs="5">
+                    @if (_showServices)
+                    {
+                        <UserList />
+                    }
+                </MudItem>
+            </MudGrid>
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+
+@code {
+    bool _drawerOpen = true;
+    bool _showServices = false;
+
+    void DrawerToggle()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    void ToggleServices()
+    {
+        _showServices = !_showServices;
+    }
+}
